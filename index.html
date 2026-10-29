@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html,body{margin:0}body{font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Perth Padel Availability</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: scoreboard header, day picker strip, court-by-hour timeline per venue, then a plain summary table. Single dark look by design. */
+:root{
+  --bg:#0b1f33; --panel:#122a43; --band:#173452; --line:#2a4866;
+  --fg:#eef3f8; --muted:#8fa6bd; --slot:#f5b04a; --slot-ink:#2a1a00;
+  --past:rgba(11,31,51,.55); --warn:#e98a6b;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px 24px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,5vw,44px);letter-spacing:.04em;text-transform:uppercase;margin:0;line-height:1;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
+.daytitle{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.6vw,34px);letter-spacing:.05em;text-transform:uppercase;text-align:right}
+.stamp{color:var(--muted);font-size:13px;text-align:right}
+.stamp.stale{color:var(--warn)}
+
+.picker{display:grid;gap:12px;background:var(--panel);border-radius:10px;padding:14px}
+.ask{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ask label{font-size:13px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.ask input[type=text]{flex:1 1 220px;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font:inherit}
+.ask input[type=date]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
+button{font:inherit;cursor:pointer}
+.btn{background:var(--slot);color:var(--slot-ink);border:0;border-radius:6px;padding:9px 16px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn:disabled{opacity:.55;cursor:default}
+:focus-visible{outline:2px solid var(--slot);outline-offset:2px}
+.msg{font-size:14px;color:var(--warn);min-height:1.2em;margin:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.chip{flex:0 0 auto;display:grid;justify-items:center;gap:0;min-width:54px;padding:6px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line);color:var(--fg)}
+.chip b{font-family:var(--display);font-size:20px;font-weight:600;line-height:1.1}
+.chip span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chip small{font-size:11px;color:var(--slot);font-variant-numeric:tabular-nums}
+.chip[aria-pressed=true]{background:var(--slot);border-color:var(--slot);color:var(--slot-ink)}
+.chip[aria-pressed=true] span,.chip[aria-pressed=true] small{color:var(--slot-ink)}
+
+.board{overflow-x:auto;border-radius:10px}
+.grid{min-width:720px;display:grid;gap:10px}
+.axis,.row{display:grid;grid-template-columns:150px 1fr;align-items:center}
+.axis .ticks{position:relative;height:30px;border-bottom:1px solid var(--line)}
+.tick{position:absolute;bottom:4px;transform:translateX(-50%);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tick.major{color:var(--fg);font-weight:600}
+.venue{background:var(--panel);border-radius:8px;overflow:hidden}
+.vhead{background:var(--band);padding:10px 16px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.vname{font-family:var(--display);font-size:21px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.vsub{color:var(--muted);font-size:13px}
+.vhead a{color:var(--slot);font-size:13px;font-weight:600;text-decoration:none}
+.vhead a:hover{text-decoration:underline}
+.row{padding:4px 0}
+.row .lab{padding-left:30px;font-size:15px}
+.track{position:relative;height:32px}
+.hl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.past{position:absolute;top:0;bottom:0;left:0;background:var(--past);z-index:2;border-right:1px dashed var(--muted)}
+.slot{position:absolute;top:3px;bottom:3px;background:var(--slot);border-radius:2px;z-index:1}
+.slot span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--slot-ink);white-space:nowrap;overflow:hidden}
+.none{padding:10px 16px 12px 30px;color:var(--muted);font-size:14px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-size:13px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:2px;vertical-align:-2px;margin-right:6px;background:var(--slot)}
+.legend i.p{background:var(--past);border:1px dashed var(--muted)}
+
+h2{font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:.05em;text-transform:uppercase;margin:0}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:640px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td .r{display:block;white-space:nowrap}
+td .c{color:var(--muted);font-size:13px}
+td.nil{color:var(--muted)}
+.notes{color:var(--muted);font-size:13px;display:grid;gap:4px}
+.notes p{margin:0}
+@media (max-width:560px){.daytitle,.stamp{text-align:left}.axis,.row{grid-template-columns:96px 1fr}.row .lab{padding-left:14px;font-size:14px}}
+@media (prefers-reduced-motion:no-preference){.slot{transition:opacity .2s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Available slots</h1>
+      <div class="sub">Perth padel &middot; public court bookings</div>
+    </div>
+    <div>
+      <div class="daytitle" id="dayTitle">Loading</div>
+      <div class="stamp" id="stamp">Fetching latest check</div>
+    </div>
+  </header>
+
+  <section class="picker" aria-label="Choose a day">
+    <form class="ask" id="askForm" autocomplete="off">
+      <label for="dayInput">Which day?</label>
+      <input type="text" id="dayInput" placeholder="Try Saturday, tomorrow or 7/11">
+      <input type="date" id="dateInput" aria-label="Pick a date">
+      <button class="btn" type="submit">Show</button>
+      <button class="btn ghost" type="button" id="refreshBtn" hidden>Check now</button>
+    </form>
+    <p class="msg" id="msg" role="status"></p>
+    <div class="chips" id="chips" role="group" aria-label="Next 14 days"></div>
+  </section>
+
+  <div class="board"><div class="grid" id="grid"></div></div>
+  <div class="legend"><span><i></i>Free to book</span><span><i class="p"></i>Already passed</span></div>
+
+  <section style="display:grid;gap:10px">
+    <h2 id="sumTitle">Summary</h2>
+    <div class="tablewrap"><table id="sumTable"></table></div>
+  </section>
+
+  <div class="notes" id="notes"></div>
+</div>
+
+<script>
+const START=6*60, END=23*60, SPAN=END-START;
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DOWL=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let DATA=null, DAYS=[], CUR=null, pending=null;
+const $=id=>document.getElementById(id);
+
+function perthNow(){const d=new Date(Date.now()+8*3600e3);return {iso:d.toISOString().slice(0,10),min:d.getUTCHours()*60+d.getUTCMinutes()}}
+function addDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function dow(iso){return new Date(iso+'T00:00:00Z').getUTCDay()}
+function fmtDate(iso){const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`}
+function toMin(t){const [h,m]=t.split(':').map(Number);return h*60+m}
+function hm(m){const h=Math.floor(m/60),mm=m%60;return `${h}:${String(mm).padStart(2,'0')}`}
+function ampm(m){let h=Math.floor(m/60),mm=m%60,s=h>=12?'pm':'am';h=h%12||12;return mm?`${h}:${String(mm).padStart(2,'0')}${s}`:`${h}${s}`}
+function pct(m){return ((m-START)/SPAN*100).toFixed(3)+'%'}
+
+// merge a court's slots into free intervals [from,to,minPrice]
+function intervals(list){
+  const iv=list.map(([t,d,p])=>[toMin(t),toMin(t)+d,p]).sort((a,b)=>a[0]-b[0]);
+  const out=[];for(const s of iv){const l=out[out.length-1];if(l&&s[0]<=l[1]){l[1]=Math.max(l[1],s[1]);if(s[2]!=null)l[2]=l[2]==null?s[2]:Math.min(l[2],s[2])}else out.push([...s])}
+  return out;
+}
+
+function parseDay(text){
+  const t=text.trim().toLowerCase().replace(/[,.]/g,' ').replace(/\s+/g,' ');
+  if(!t)return null;
+  const today=perthNow().iso;
+  if(/^(today|tonight|now)$/.test(t))return today;
+  if(/^(tomorrow|tmrw|tmr|tomoz)$/.test(t))return addDays(today,1);
+  let m=t.match(/^(next )?([a-z]{3,})$/);
+  if(m){const i=DOWL.findIndex(d=>d.startsWith(m[2]));if(i>=0){let n=(i-dow(today)+7)%7;if(m[1]&&n===0)n=7;return addDays(today,n)}}
+  m=t.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?$/);
+  if(m){let y=m[3]?+m[3]:+today.slice(0,4);if(y<100)y+=2000;let iso=`${y}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;if(!m[3]&&iso<today)iso=`${y+1}${iso.slice(4)}`;return iso}
+  m=t.match(/^(?:[a-z]+ )?(\d{1,2})(?:st|nd|rd|th)? ([a-z]{3,})$/);
+  if(m){const mi=MON.findIndex(x=>m[2].startsWith(x.toLowerCase()));if(mi>=0){let y=+today.slice(0,4);let iso=`${y}-${String(mi+1).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;if(iso<today)iso=`${y+1}${iso.slice(4)}`;return iso}}
+  m=t.match(/^(?:[a-z]+ )?(\d{1,2})(?:st|nd|rd|th)?$/);
+  if(m){for(const d of DAYS){if(+d.slice(8)===+m[1])return d}}
+  return undefined;
+}
+
+function freeCount(iso){let n=0;for(const v of DATA.venues){if(v.status!=='ok')continue;for(const c of v.courts){n+=intervals(v.slots[iso]?.[c]||[]).filter(i=>visibleIv(iso,i)).length}}return n}
+function visibleIv(iso,i){const now=perthNow();return !(iso===now.iso&&i[1]<=now.min)}
+
+function renderChips(){
+  const box=$('chips');box.innerHTML='';
+  DAYS.forEach((d,i)=>{const b=document.createElement('button');b.type='button';b.className='chip';b.setAttribute('aria-pressed',d===CUR);
+    const n=freeCount(d);
+    b.innerHTML=`<span>${i===0?'Today':DOW[dow(d)]}</span><b>${+d.slice(8)}</b><small>${n?n+' gaps':'full'}</small>`;
+    b.title=fmtDate(d);b.onclick=()=>show(d);box.appendChild(b)});
+}
+
+function renderGrid(iso){
+  const g=$('grid');g.innerHTML='';
+  const now=perthNow(), isToday=iso===now.iso, pastTo=isToday?Math.min(Math.max(now.min,START),END):START;
+  const axis=document.createElement('div');axis.className='axis';
+  let ticks='';for(let h=6;h<=22;h++){const m=h*60;const major=h===6||h===12||h===18;ticks+=`<span class="tick${major?' major':''}" style="left:${pct(m)}">${major?ampm(m).toUpperCase():(h%12||12)}</span>`}
+  axis.innerHTML=`<div></div><div class="ticks">${ticks}</div>`;g.appendChild(axis);
+  const lines=[...Array(18)].map((_,i)=>`<i class="hl" style="left:${pct((6+i)*60)}"></i>`).join('');
+  for(const v of DATA.venues){
+    const card=document.createElement('div');card.className='venue';
+    card.innerHTML=`<div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform}</div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>`;
+    if(v.status!=='ok'||!v.slots[iso]){const p=document.createElement('div');p.className='none';p.textContent=v.status!=='ok'?'Could not be checked on the last run.':'No data for this day yet.';card.appendChild(p);g.appendChild(card);continue}
+    for(const c of v.courts){
+      const ivs=intervals(v.slots[iso][c]||[]);
+      const row=document.createElement('div');row.className='row';
+      let blocks='';for(const [a,b,p] of ivs){const a1=Math.max(a,START),b1=Math.min(b,END);if(b1<=a1)continue;
+        const label=(b1-a1)>=60?ampm(a):'';blocks+=`<div class="slot" style="left:${pct(a1)};width:calc(${pct(b1)} - ${pct(a1)})" title="${c}: ${ampm(a)} to ${ampm(b)}${p!=null?' from A$'+p:''}"><span>${label}</span></div>`}
+      row.innerHTML=`<div class="lab">${c}</div><div class="track">${lines}${blocks}${isToday&&pastTo>START?`<div class="past" style="width:${pct(pastTo)}"></div>`:''}</div>`;
+      card.appendChild(row);
+    }
+    g.appendChild(card);
+  }
+}
+
+function renderSummary(iso){
+  $('sumTitle').textContent=`Summary for ${DOW[dow(iso)]} ${fmtDate(iso)}`;
+  const parts=[['Morning','before 12pm',0,720],['Afternoon','12pm to 5pm',720,1020],['Evening','after 5pm',1020,1440]];
+  let h=`<thead><tr><th>Venue</th>${parts.map(p=>`<th>${p[0]} <span style="text-transform:none;letter-spacing:0">(${p[1]})</span></th>`).join('')}</tr></thead><tbody>`;
+  for(const v of DATA.venues){
+    h+=`<tr><td><b>${v.name}</b><span class="c" style="display:block">${v.suburb}</span></td>`;
+    if(v.status!=='ok'||!v.slots[iso]){h+=`<td class="nil" colspan="3">Not checked</td></tr>`;continue}
+    // collect intervals across courts, then group identical ranges
+    for(const [,,lo,hi] of parts){
+      const map=new Map();
+      for(const c of v.courts)for(const i of intervals(v.slots[iso][c]||[])){if(!visibleIv(iso,i))continue;const a=Math.max(i[0],lo),b=Math.min(i[1],hi);if(b-a<30)continue;const k=a+'-'+b;const e=map.get(k)||{a,b,n:0,p:null};e.n++;if(i[2]!=null)e.p=e.p==null?i[2]:Math.min(e.p,i[2]);map.set(k,e)}
+      const rows=[...map.values()].sort((x,y)=>x.a-y.a);
+      h+=rows.length?`<td>${rows.map(e=>`<span class="r">${ampm(e.a)} to ${ampm(e.b)} <span class="c">${e.n} court${e.n>1?'s':''}${e.p!=null?', from A$'+e.p:''}</span></span>`).join('')}</td>`:`<td class="nil">Nothing free</td>`;
+    }
+    h+='</tr>';
+  }
+  $('sumTable').innerHTML=h+'</tbody>';
+}
+
+function show(iso){
+  if(!DAYS.includes(iso)){$('msg').textContent=iso<DAYS[0]?'That day has passed.':`Only ${DAYS.length} days ahead are checked (to ${fmtDate(DAYS[DAYS.length-1])}).`;return}
+  CUR=iso;$('msg').textContent='';$('dateInput').value=iso;
+  $('dayTitle').textContent=`${DOW[dow(iso)]} • ${+iso.slice(8)} ${MON[+iso.slice(5,7)-1]}`;
+  renderChips();renderGrid(iso);renderSummary(iso);
+  try{history.replaceState(null,'','#d'+iso.replaceAll('-',''))}catch(e){}
+}
+
+function renderStamp(){
+  const u=new Date(DATA.updated), age=(Date.now()-u)/60000;
+  const p=new Date(u.getTime()+8*3600e3);
+  const t=`${ampm(p.getUTCHours()*60+p.getUTCMinutes())} ${fmtDate(p.toISOString().slice(0,10))}`;
+  const ago=age<60?`${Math.round(age)} min ago`:age<1440?`${Math.round(age/60)} h ago`:`${Math.round(age/1440)} days ago`;
+  const el=$('stamp');el.textContent=`Checked ${t} AWST (${ago})`;el.classList.toggle('stale',age>360);
+  el.title='Slots can be taken between checks. Confirm on the booking site.';
+}
+
+function renderNotes(){
+  const n=$('notes');n.innerHTML='<p>Courts are checked automatically through the day from each venue\'s public booking page. Slots can go between checks, so confirm on the booking site.</p>'+
+   (DATA.unchecked||[]).map(u=>`<p>Not shown: ${u.name} (${u.suburb}). ${u.reason}.</p>`).join('');
+}
+
+async function load(keep){
+  const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'});DATA=await r.json();
+  const today=perthNow().iso;
+  const all=[...new Set(DATA.venues.flatMap(v=>Object.keys(v.slots||{})))].sort();
+  DAYS=all.filter(d=>d>=today);
+  if(!DAYS.length)DAYS=[today];
+  renderStamp();renderNotes();
+  const h=location.hash.match(/^#d(\d{4})(\d\d)(\d\d)$/);
+  let want=keep||(h?`${h[1]}-${h[2]}-${h[3]}`:today);
+  if(!DAYS.includes(want))want=DAYS[0];
+  show(want);
+}
+
+$('askForm').addEventListener('submit',e=>{e.preventDefault();const v=$('dayInput').value;const d=parseDay(v);
+  if(d===null){$('msg').textContent='Type a day, like Saturday or 7/11.';return}
+  if(d===undefined){$('msg').textContent=`Couldn't read "${v}". Try Saturday, tomorrow or 7/11.`;return}
+  show(d)});
+$('dateInput').addEventListener('change',e=>{if(e.target.value)show(e.target.value)});
+window.addEventListener('hashchange',()=>{const h=location.hash.match(/^#d(\d{4})(\d\d)(\d\d)$/);if(h)show(`${h[1]}-${h[2]}-${h[3]}`)});
+
+const LOADED=load().catch(()=>{$('dayTitle').textContent='No data';$('stamp').textContent='Could not load the latest check.'});
+
+// Owner-only: trigger a fresh check through the scheduled task
+(async()=>{
+  await LOADED;
+  const user=await window.claude?.use?.('user');
+  if(!user||!user.isOwner()||!DATA?.refreshTrigger)return;
+  const mcp=await window.claude.use('mcp');if(!mcp)return;
+  const b=$('refreshBtn');b.hidden=false;
+  b.onclick=async()=>{b.disabled=true;b.textContent='Checking...';
+    try{await mcp.callTool('Claude Code Remote','fire_trigger',{trigger_id:DATA.refreshTrigger});
+      $('msg').textContent='Check started. New slots appear here in a few minutes (your Mac needs to be awake).';
+      const was=DATA.updated;let tries=0;
+      pending=setInterval(async()=>{tries++;try{const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'});const d=await r.json();if(d.updated!==was){clearInterval(pending);await load(CUR);$('msg').textContent='Updated.';b.disabled=false;b.textContent='Check now'}}catch(e){}
+        if(tries>20){clearInterval(pending);b.disabled=false;b.textContent='Check now'}},30000);
+    }catch(e){$('msg').textContent=e?.code==='not_granted'?'Permission to run the check was declined.':'Could not start the check. Try again shortly.';b.disabled=false;b.textContent='Check now'}};
+})();
+
+setInterval(()=>{if(DATA&&!pending){renderStamp();if(CUR)show(CUR)}},300000);
+</script>
+
+</body>
+</html>

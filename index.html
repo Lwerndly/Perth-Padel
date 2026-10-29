@@ -49,11 +49,13 @@ button{font:inherit;cursor:pointer}
 .board{overflow-x:auto;border-radius:10px}
 .grid{min-width:720px;display:grid;gap:10px}
 .axis,.row{display:grid;grid-template-columns:150px 1fr;align-items:center}
-.axis .ticks{position:relative;height:30px;border-bottom:1px solid var(--line)}
+.axis .ticks{position:relative;height:26px}
+.vband{background:var(--band);padding-bottom:4px}
+.vband .axis{padding-right:0}
 .tick{position:absolute;bottom:4px;transform:translateX(-50%);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tick.major{color:var(--fg);font-weight:600}
 .venue{background:var(--panel);border-radius:8px;overflow:hidden}
-.vhead{background:var(--band);padding:10px 16px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.vhead{padding:10px 16px 2px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .vname{font-family:var(--display);font-size:21px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 .vsub{color:var(--muted);font-size:13px}
 .vhead a{color:var(--slot);font-size:13px;font-weight:600;text-decoration:none}
@@ -176,13 +178,12 @@ function renderChips(){
 function renderGrid(iso){
   const g=$('grid');g.innerHTML='';
   const now=perthNow(), isToday=iso===now.iso, pastTo=isToday?Math.min(Math.max(now.min,START),END):START;
-  const axis=document.createElement('div');axis.className='axis';
   let ticks='';for(let h=6;h<=22;h++){const m=h*60;const major=h===6||h===12||h===18;ticks+=`<span class="tick${major?' major':''}" style="left:${pct(m)}">${major?ampm(m).toUpperCase():(h%12||12)}</span>`}
-  axis.innerHTML=`<div></div><div class="ticks">${ticks}</div>`;g.appendChild(axis);
+  const axisHtml=`<div class="axis"><div></div><div class="ticks">${ticks}</div></div>`;
   const lines=[...Array(18)].map((_,i)=>`<i class="hl" style="left:${pct((6+i)*60)}"></i>`).join('');
   for(const v of DATA.venues){
     const card=document.createElement('div');card.className='venue';
-    card.innerHTML=`<div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform}</div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>`;
+    card.innerHTML=`<div class="vband"><div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform}</div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>${axisHtml}</div>`;
     if(v.status!=='ok'||!v.slots[iso]){const p=document.createElement('div');p.className='none';p.textContent=v.status!=='ok'?'Could not be checked on the last run.':'No data for this day yet.';card.appendChild(p);g.appendChild(card);continue}
     for(const c of v.courts){
       const ivs=intervals(v.slots[iso][c]||[]);

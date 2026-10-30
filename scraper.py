@@ -8,7 +8,7 @@ Every run refreshes today plus the next 2 days. Once an hour (the first run
 after the top of the hour) it refreshes the full 14 days. Days that were not
 refreshed keep their previous slots, so each run stays light on the venues.
 """
-import json, re, sys, time, urllib.request
+import http.cookiejar, json, re, sys, time, urllib.request
 from datetime import datetime, timedelta, timezone
 
 PERTH = timezone(timedelta(hours=8))
@@ -42,11 +42,12 @@ UNCHECKED = [{"name": "West Coast Padel", "suburb": "Dalkeith",
               "book": "https://westcoastpadel.com.au/"}]
 
 
-def get(url, tries=3):
+def get(url, tries=3, opener=None, headers=None):
+    opener = opener or urllib.request.build_opener()
     for i in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
-            with urllib.request.urlopen(req, timeout=30) as r:
+            req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})})
+            with opener.open(req, timeout=30) as r:
                 return r.read().decode("utf-8", "replace")
         except Exception as e:
             if i == tries - 1:
@@ -79,9 +80,15 @@ def playtomic(v, dates):
 
 
 def sportlogic(v, dates):
+    # Open the public booking page first, as a browser does, so the site sets
+    # its session cookie; the calendar widget needs it.
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    get(v["book"], opener=opener, headers={"Accept": "text/html"})
+    ajax = {"X-Requested-With": "XMLHttpRequest", "Referer": v["book"]}
     courts, slots = set(), {}
     for d in dates:
-        html = get(f"{v['base']}/secure/customer/booking/v2/public/calendar-widget?date={d.replace('-', '')}")
+        html = get(f"{v['base']}/secure/customer/booking/v2/public/calendar-widget?date={d.replace('-', '')}",
+                   opener=opener, headers=ajax)
         courts.update(int(c) for c in re.findall(r'id="(?:available|waiting)_C(\d+)_\d{8}_\d{4}"', html))
         day = {}
         for c, _, hh, mm in re.findall(r'id="available_C(\d+)_(\d{8})_(\d\d)(\d\d)"', html):
@@ -111,6 +118,12 @@ def main():
     for v in VENUES:
         prev = old_by_id.get(v["id"], {})
         meta = {k: v[k] for k in ("id", "name", "suburb", "platform", "book")}
+        if v["platform"] == "Playtomic" and prev:
+            # Playtomic refuses requests from GitHub's servers (HTTP 403), so these
+            # venues are refreshed from Liam's Mac instead. Keep what is there.
+            out_venues.append({**prev, **meta})
+            print(f"{v['id']}: skipped (Playtomic is checked from the Mac)")
+            continue
         try:
             courts, fresh = (playtomic if v["platform"] == "Playtomic" else sportlogic)(v, dates)
             slots = {d: prev.get("slots", {}).get(d) for d in all_dates}
@@ -132,6 +145,8 @@ def main():
         print("Every venue failed; leaving data.json unchanged.")
         sys.exit(1)
     data = {"updated": min(ok_times), "venues": out_venues, "unchecked": UNCHECKED}
+    if old.get("refreshTrigger"):
+        data["refreshTrigger"] = old["refreshTrigger"]
     with open("data.json", "w") as f:
         json.dump(data, f, separators=(",", ":"))
 

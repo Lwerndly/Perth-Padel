@@ -58,6 +58,7 @@ button{font:inherit;cursor:pointer}
 .vhead{padding:10px 16px 2px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .vname{font-family:var(--display);font-size:21px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 .vsub{color:var(--muted);font-size:13px}
+.vsub .old{color:var(--warn)}
 .vhead a{color:var(--slot);font-size:13px;font-weight:600;text-decoration:none}
 .vhead a:hover{text-decoration:underline}
 .row{padding:4px 0}
@@ -183,7 +184,7 @@ function renderGrid(iso){
   const lines=[...Array(18)].map((_,i)=>`<i class="hl" style="left:${pct((6+i)*60)}"></i>`).join('');
   for(const v of DATA.venues){
     const card=document.createElement('div');card.className='venue';
-    card.innerHTML=`<div class="vband"><div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform}</div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>${axisHtml}</div>`;
+    card.innerHTML=`<div class="vband"><div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform} &middot; <span class="${ageMin(v.checked)>180?'old':''}">${v.checked?'checked '+agoText(v.checked):'not checked yet'}</span></div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>${axisHtml}</div>`;
     if(v.status!=='ok'||!v.slots[iso]){const p=document.createElement('div');p.className='none';p.textContent=v.status!=='ok'?'Could not be checked on the last run.':'No data for this day yet.';card.appendChild(p);g.appendChild(card);continue}
     for(const c of v.courts){
       const ivs=intervals(v.slots[iso][c]||[]);
@@ -224,6 +225,8 @@ function show(iso){
   try{history.replaceState(null,'','#d'+iso.replaceAll('-',''))}catch(e){}
 }
 
+function ageMin(iso){return iso?(Date.now()-new Date(iso))/60000:1e9}
+function agoText(iso){const a=ageMin(iso);return a<1?'just now':a<60?`${Math.round(a)} min ago`:a<1440?`${Math.round(a/60)} h ago`:`${Math.round(a/1440)} days ago`}
 function renderStamp(){
   const u=new Date(DATA.updated), age=(Date.now()-u)/60000;
   const p=new Date(u.getTime()+8*3600e3);
@@ -234,7 +237,7 @@ function renderStamp(){
 }
 
 function renderNotes(){
-  const n=$('notes');n.innerHTML='<p>Courts are checked automatically through the day from each venue\'s public booking page. Slots can go between checks, so confirm on the booking site.</p>'+
+  const n=$('notes');n.innerHTML='<p>Padel West and Play Padel are checked about every 15 minutes from 5am to 11pm. Playtomic venues (Padel 360 and Padel Crush) are checked less often. Each venue shows when it was last checked, and this page reloads every 5 minutes. Slots can go between checks, so confirm on the booking site.</p>'+
    (DATA.unchecked||[]).map(u=>`<p>Not shown: ${u.name} (${u.suburb}). ${u.reason}.</p>`).join('');
 }
 
@@ -276,7 +279,7 @@ const LOADED=load().catch(()=>{$('dayTitle').textContent='No data';$('stamp').te
     }catch(e){$('msg').textContent=e?.code==='not_granted'?'Permission to run the check was declined.':'Could not start the check. Try again shortly.';b.disabled=false;b.textContent='Check now'}};
 })();
 
-setInterval(()=>{if(DATA&&!pending){renderStamp();if(CUR)show(CUR)}},300000);
+setInterval(()=>{if(!pending)load(CUR).catch(()=>{})},300000);
 </script>
 
 </body>

@@ -4,9 +4,7 @@
 Runs on GitHub Actions (see .github/workflows/refresh.yml). Reads each venue's
 public booking availability and writes data.json next to index.html.
 
-Every run refreshes today plus the next 2 days. Once an hour (the first run
-after the top of the hour) it refreshes the full 14 days. Days that were not
-refreshed keep their previous slots, so each run stays light on the venues.
+Every run refreshes the full 14 days.
 """
 import http.cookiejar, json, re, sys, time, urllib.request
 from datetime import datetime, timedelta, timezone
@@ -105,7 +103,7 @@ def sportlogic(v, dates):
 
 def main():
     now = datetime.now(PERTH)
-    full = "--full" in sys.argv or now.minute < 15
+    full = True  # always check the full fortnight
     all_dates = [(now + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(DAYS)]
     dates = all_dates if full else all_dates[:3]
     try:

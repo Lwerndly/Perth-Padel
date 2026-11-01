@@ -243,6 +243,10 @@ function renderNotes(){
 
 async function load(keep){
   const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'});DATA=await r.json();
+  // Playtomic venues are checked from Liam's Mac and saved separately; use whichever copy is newer.
+  try{const p=await fetch('playtomic.json?t='+Date.now(),{cache:'no-store'});if(p.ok){const pj=await p.json();
+    for(const v of pj.venues||[]){const i=DATA.venues.findIndex(x=>x.id===v.id);if(i<0)DATA.venues.push(v);else if(!DATA.venues[i].checked||(v.checked&&v.checked>DATA.venues[i].checked))DATA.venues[i]=v}
+    const ok=DATA.venues.filter(v=>v.status==='ok'&&v.checked).map(v=>v.checked).sort();if(ok.length)DATA.updated=ok[0]}}catch(e){}
   const today=perthNow().iso;
   const all=[...new Set(DATA.venues.flatMap(v=>Object.keys(v.slots||{})))].sort();
   DAYS=all.filter(d=>d>=today);

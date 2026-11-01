@@ -31,6 +31,8 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,5vw,44px);let
 .ask{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .ask label{font-size:13px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
 .ask input[type=text]{flex:1 1 220px;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font:inherit}
+.ask input[type=time]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
+.tf{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
 .ask input[type=date]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
 button{font:inherit;cursor:pointer}
 .btn{background:var(--slot);color:var(--slot-ink);border:0;border-radius:6px;padding:9px 16px;font-weight:600}
@@ -107,14 +109,20 @@ td.nil{color:var(--muted)}
       <input type="text" id="dayInput" placeholder="Try Saturday, tomorrow or 7/11">
       <input type="date" id="dateInput" aria-label="Pick a date">
       <button class="btn" type="submit">Show</button>
-      <button class="btn ghost" type="button" id="refreshBtn" hidden>Check now</button>
+      <button class="btn ghost" type="button" id="refreshBtn">Refresh</button>
     </form>
+    <div class="ask" id="timeFilter">
+      <label for="fromTime">Times</label>
+      <span class="tf">From <input type="time" id="fromTime" step="1800" aria-label="Show slots from"></span>
+      <span class="tf">until <input type="time" id="untilTime" step="1800" aria-label="Show slots until"></span>
+      <button class="btn ghost" type="button" id="clearTime" hidden>Show all times</button>
+    </div>
     <p class="msg" id="msg" role="status"></p>
     <div class="chips" id="chips" role="group" aria-label="Next 14 days"></div>
   </section>
 
   <div class="board"><div class="grid" id="grid"></div></div>
-  <div class="legend"><span><i></i>Free to book</span><span><i class="p"></i>Already passed</span></div>
+  <div class="legend"><span><i></i>Free to book</span><span><i class="p"></i>Passed or outside your times</span></div>
 
   <section style="display:grid;gap:10px">
     <h2 id="sumTitle">Summary</h2>
@@ -165,7 +173,10 @@ function parseDay(text){
   return undefined;
 }
 
-function freeCount(iso){let n=0;for(const v of DATA.venues){if(v.status!=='ok')continue;for(const c of v.courts){n+=intervals(v.slots[iso]?.[c]||[]).filter(i=>visibleIv(iso,i)).length}}return n}
+let FROM=null, UNTIL=null;
+function win(iso){const now=perthNow();let lo=FROM??0,hi=UNTIL??1440;if(iso===now.iso)lo=Math.max(lo,now.min);return [lo,hi]}
+function clip(iso,i){const [lo,hi]=win(iso);const a=Math.max(i[0],lo),b=Math.min(i[1],hi);return b-a>=30?[a,b,i[2]]:null}
+function freeCount(iso){let n=0;for(const v of DATA.venues){if(v.status!=='ok')continue;for(const c of v.courts){n+=intervals(v.slots[iso]?.[c]||[]).filter(i=>clip(iso,i)).length}}return n}
 function visibleIv(iso,i){const now=perthNow();return !(iso===now.iso&&i[1]<=now.min)}
 
 function renderChips(){
@@ -178,7 +189,7 @@ function renderChips(){
 
 function renderGrid(iso){
   const g=$('grid');g.innerHTML='';
-  const now=perthNow(), isToday=iso===now.iso, pastTo=isToday?Math.min(Math.max(now.min,START),END):START;
+  const [wlo,whi]=win(iso), shadeL=Math.min(Math.max(wlo,START),END), shadeR=Math.max(Math.min(whi,END),START);
   let ticks='';for(let h=6;h<=22;h++){const m=h*60;const major=h===6||h===12||h===18;ticks+=`<span class="tick${major?' major':''}" style="left:${pct(m)}">${major?ampm(m).toUpperCase():(h%12||12)}</span>`}
   const axisHtml=`<div class="axis"><div></div><div class="ticks">${ticks}</div></div>`;
   const lines=[...Array(18)].map((_,i)=>`<i class="hl" style="left:${pct((6+i)*60)}"></i>`).join('');
@@ -187,11 +198,11 @@ function renderGrid(iso){
     card.innerHTML=`<div class="vband"><div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform} &middot; <span class="${ageMin(v.checked)>180?'old':''}">${v.checked?'checked '+agoText(v.checked):'not checked yet'}</span></div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>${axisHtml}</div>`;
     if(v.status!=='ok'||!v.slots[iso]){const p=document.createElement('div');p.className='none';p.textContent=v.status!=='ok'?'Could not be checked on the last run.':'No data for this day yet.';card.appendChild(p);g.appendChild(card);continue}
     for(const c of v.courts){
-      const ivs=intervals(v.slots[iso][c]||[]);
+      const ivs=intervals(v.slots[iso][c]||[]).map(i=>clip(iso,i)).filter(Boolean);
       const row=document.createElement('div');row.className='row';
       let blocks='';for(const [a,b,p] of ivs){const a1=Math.max(a,START),b1=Math.min(b,END);if(b1<=a1)continue;
         const label=(b1-a1)>=60?ampm(a):'';blocks+=`<div class="slot" style="left:${pct(a1)};width:calc(${pct(b1)} - ${pct(a1)})" title="${c}: ${ampm(a)} to ${ampm(b)}${p!=null?' from A$'+p:''}"><span>${label}</span></div>`}
-      row.innerHTML=`<div class="lab">${c}</div><div class="track">${lines}${blocks}${isToday&&pastTo>START?`<div class="past" style="width:${pct(pastTo)}"></div>`:''}</div>`;
+      row.innerHTML=`<div class="lab">${c}</div><div class="track">${lines}${blocks}${shadeL>START?`<div class="past" style="width:${pct(shadeL)}"></div>`:''}${shadeR<END?`<div class="past" style="left:${pct(shadeR)};right:0;width:auto;border-right:0;border-left:1px dashed var(--muted)"></div>`:''}</div>`;
       card.appendChild(row);
     }
     g.appendChild(card);
@@ -199,7 +210,7 @@ function renderGrid(iso){
 }
 
 function renderSummary(iso){
-  $('sumTitle').textContent=`Summary for ${DOW[dow(iso)]} ${fmtDate(iso)}`;
+  $('sumTitle').textContent=`Summary for ${DOW[dow(iso)]} ${fmtDate(iso)}`+(FROM!=null||UNTIL!=null?` (${FROM!=null?'from '+ampm(FROM):''}${FROM!=null&&UNTIL!=null?' ':''}${UNTIL!=null?'until '+ampm(UNTIL):''})`:'');
   const parts=[['Morning','before 12pm',0,720],['Afternoon','12pm to 5pm',720,1020],['Evening','after 5pm',1020,1440]];
   let h=`<thead><tr><th>Venue</th>${parts.map(p=>`<th>${p[0]} <span style="text-transform:none;letter-spacing:0">(${p[1]})</span></th>`).join('')}</tr></thead><tbody>`;
   for(const v of DATA.venues){
@@ -208,7 +219,7 @@ function renderSummary(iso){
     // collect intervals across courts, then group identical ranges
     for(const [,,lo,hi] of parts){
       const map=new Map();
-      for(const c of v.courts)for(const i of intervals(v.slots[iso][c]||[])){if(!visibleIv(iso,i))continue;const a=Math.max(i[0],lo),b=Math.min(i[1],hi);if(b-a<30)continue;const k=a+'-'+b;const e=map.get(k)||{a,b,n:0,p:null};e.n++;if(i[2]!=null)e.p=e.p==null?i[2]:Math.min(e.p,i[2]);map.set(k,e)}
+      for(const c of v.courts)for(const i of intervals(v.slots[iso][c]||[])){const ci=clip(iso,i);if(!ci)continue;const a=Math.max(ci[0],lo),b=Math.min(ci[1],hi);if(b-a<30)continue;const k=a+'-'+b;const e=map.get(k)||{a,b,n:0,p:null};e.n++;if(i[2]!=null)e.p=e.p==null?i[2]:Math.min(e.p,i[2]);map.set(k,e)}
       const rows=[...map.values()].sort((x,y)=>x.a-y.a);
       h+=rows.length?`<td>${rows.map(e=>`<span class="r">${ampm(e.a)} to ${ampm(e.b)} <span class="c">${e.n} court${e.n>1?'s':''}${e.p!=null?', from A$'+e.p:''}</span></span>`).join('')}</td>`:`<td class="nil">Nothing free</td>`;
     }
@@ -237,7 +248,7 @@ function renderStamp(){
 }
 
 function renderNotes(){
-  const n=$('notes');n.innerHTML='<p>Padel West and Play Padel are checked about every 15 minutes from 5am to 11pm. Playtomic venues (Padel 360 and Padel Crush) are checked less often. Each venue shows when it was last checked, and this page reloads every 5 minutes. Slots can go between checks, so confirm on the booking site.</p>'+
+  const n=$('notes');n.innerHTML='<p>All four venues are checked about every 15 minutes from 5am to 11pm, for the full fortnight. Each venue shows when it was last checked, and this page reloads every 5 minutes. Slots can go between checks, so confirm on the booking site.</p>'+
    (DATA.unchecked||[]).map(u=>`<p>Not shown: ${u.name} (${u.suburb}). ${u.reason}.</p>`).join('');
 }
 
@@ -267,21 +278,22 @@ window.addEventListener('hashchange',()=>{const h=location.hash.match(/^#d(\d{4}
 
 const LOADED=load().catch(()=>{$('dayTitle').textContent='No data';$('stamp').textContent='Could not load the latest check.'});
 
-// Owner-only: trigger a fresh check through the scheduled task
-(async()=>{
-  await LOADED;
-  const user=await window.claude?.use?.('user');
-  if(!user||!user.isOwner()||!DATA?.refreshTrigger)return;
-  const mcp=await window.claude.use('mcp');if(!mcp)return;
-  const b=$('refreshBtn');b.hidden=false;
-  b.onclick=async()=>{b.disabled=true;b.textContent='Checking...';
-    try{await mcp.callTool('Claude Code Remote','fire_trigger',{trigger_id:DATA.refreshTrigger});
-      $('msg').textContent='Check started. New slots appear here in a few minutes (your Mac needs to be awake).';
-      const was=DATA.updated;let tries=0;
-      pending=setInterval(async()=>{tries++;try{const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'});const d=await r.json();if(d.updated!==was){clearInterval(pending);await load(CUR);$('msg').textContent='Updated.';b.disabled=false;b.textContent='Check now'}}catch(e){}
-        if(tries>20){clearInterval(pending);b.disabled=false;b.textContent='Check now'}},30000);
-    }catch(e){$('msg').textContent=e?.code==='not_granted'?'Permission to run the check was declined.':'Could not start the check. Try again shortly.';b.disabled=false;b.textContent='Check now'}};
-})();
+// Refresh: load the latest check now
+$('refreshBtn').onclick=async()=>{const b=$('refreshBtn');b.disabled=true;b.textContent='Refreshing...';
+  try{await load(CUR);$('msg').textContent=`Up to date. Latest check ${agoText(DATA.updated)}; venues are checked every 15 minutes.`}
+  catch(e){$('msg').textContent='Could not load the latest check. Try again shortly.'}
+  b.disabled=false;b.textContent='Refresh'};
+
+// Time filter
+function tMin(v){if(!v)return null;const [h,m]=v.split(':').map(Number);return h*60+m}
+function applyFilter(){FROM=tMin($('fromTime').value);UNTIL=tMin($('untilTime').value);
+  if(FROM!=null&&UNTIL!=null&&UNTIL<=FROM){$('msg').textContent='The "until" time needs to be after the "from" time.';UNTIL=null}
+  $('clearTime').hidden=FROM==null&&UNTIL==null;
+  try{localStorage.setItem('padelTimes',JSON.stringify([$('fromTime').value,$('untilTime').value]))}catch(e){}
+  if(CUR)show(CUR)}
+$('fromTime').addEventListener('change',applyFilter);$('untilTime').addEventListener('change',applyFilter);
+$('clearTime').onclick=()=>{$('fromTime').value='';$('untilTime').value='';applyFilter()};
+try{const t=JSON.parse(localStorage.getItem('padelTimes')||'null');if(t){$('fromTime').value=t[0]||'';$('untilTime').value=t[1]||'';FROM=tMin(t[0]);UNTIL=tMin(t[1]);$('clearTime').hidden=FROM==null&&UNTIL==null}}catch(e){}
 
 setInterval(()=>{if(!pending)load(CUR).catch(()=>{})},300000);
 </script>

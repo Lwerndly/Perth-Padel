@@ -87,9 +87,9 @@ def sportlogic(v, dates):
     for d in dates:
         html = get(f"{v['base']}/secure/customer/booking/v2/public/calendar-widget?date={d.replace('-', '')}",
                    opener=opener, headers=ajax)
-        courts.update(int(c) for c in re.findall(r'id="(?:available|waiting)_C(\d+)_\d{8}_\d{4}"', html))
+        courts.update(int(c) for c in re.findall(r'id=["\x27](?:available|waiting)_C(\d+)_\d{8}_\d{4}["\x27]', html))
         day = {}
-        for c, _, hh, mm in re.findall(r'id="available_C(\d+)_(\d{8})_(\d\d)(\d\d)"', html):
+        for c, _, hh, mm in re.findall(r'id=["\x27]available_C(\d+)_(\d{8})_(\d\d)(\d\d)["\x27]', html):
             day.setdefault(f"Court {c}", []).append([f"{hh}:{mm}", 30])
         slots[d] = day
         time.sleep(0.5)

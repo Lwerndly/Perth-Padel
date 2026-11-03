@@ -55,8 +55,9 @@ button{font:inherit;cursor:pointer}
 .vband{background:var(--band);padding-bottom:4px}
 .vband .axis{padding-right:0}
 .tick{position:absolute;bottom:4px;transform:translateX(-50%);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tick.first{transform:translateX(2px)}
 .tick.major{color:var(--fg);font-weight:600}
-.venue{background:var(--panel);border-radius:8px;overflow:hidden}
+.venue{background:var(--panel);border-radius:8px;overflow:hidden;overflow:clip}
 .vhead{padding:10px 16px 2px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .vname{font-family:var(--display);font-size:21px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 .vsub{color:var(--muted);font-size:13px}
@@ -64,7 +65,18 @@ button{font:inherit;cursor:pointer}
 .vhead a{color:var(--slot);font-size:13px;font-weight:600;text-decoration:none}
 .vhead a:hover{text-decoration:underline}
 .row{padding:4px 0}
-.row .lab{padding-left:30px;font-size:15px}
+.row .lab{padding-left:30px;font-size:15px;position:sticky;left:0;z-index:4;background:var(--panel);align-self:stretch;display:flex;align-items:center}
+.axis>div:first-child{position:sticky;left:0;z-index:4;background:var(--band);align-self:stretch}
+.vhead>div:first-child{position:sticky;left:16px}
+/* Frozen time header: stays at the top of the screen while scrolling through the venues, and follows sideways scrolling */
+.tl{position:relative;min-width:0}
+.saxis{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;height:0;overflow:visible}
+.saxis-in{position:absolute;left:0;right:0;top:0;display:grid;grid-template-columns:150px 1fr;background:var(--band);border-bottom:1px solid var(--line);box-shadow:0 4px 10px rgba(0,0,0,.35);border-radius:0 0 8px 8px;visibility:hidden;opacity:0;transition:opacity .15s}
+.saxis.on .saxis-in{visibility:visible;opacity:1}
+.slab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;padding-left:16px}
+.sclip{overflow:hidden;position:relative;height:28px}
+.sticks{position:absolute;top:0;left:0;height:28px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
 .track{position:relative;height:32px}
 .hl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
 .past{position:absolute;top:0;bottom:0;left:0;background:var(--past);z-index:2;border-right:1px dashed var(--muted)}
@@ -85,7 +97,7 @@ td .c{color:var(--muted);font-size:13px}
 td.nil{color:var(--muted)}
 .notes{color:var(--muted);font-size:13px;display:grid;gap:4px}
 .notes p{margin:0}
-@media (max-width:560px){.daytitle,.stamp{text-align:left}.axis,.row{grid-template-columns:96px 1fr}.row .lab{padding-left:14px;font-size:14px}}
+@media (max-width:560px){.daytitle,.stamp{text-align:left}.axis,.row,.saxis-in{grid-template-columns:96px 1fr}.slab{padding-left:14px}.row .lab{padding-left:14px;font-size:14px}}
 @media (prefers-reduced-motion:no-preference){.slot{transition:opacity .2s}}
 </style>
 
@@ -121,7 +133,10 @@ td.nil{color:var(--muted)}
     <div class="chips" id="chips" role="group" aria-label="Next 14 days"></div>
   </section>
 
-  <div class="board"><div class="grid" id="grid"></div></div>
+  <div class="tl" id="tl">
+    <div class="saxis" id="saxis" aria-hidden="true"><div class="saxis-in"><div class="slab">Time</div><div class="sclip"><div class="sticks ticks" id="sticks"></div></div></div></div>
+    <div class="board" id="board"><div class="grid" id="grid"></div></div>
+  </div>
   <div class="legend"><span><i></i>Free to book</span><span><i class="p"></i>Passed or outside your times</span></div>
 
   <section style="display:grid;gap:10px">
@@ -190,7 +205,7 @@ function renderChips(){
 function renderGrid(iso){
   const g=$('grid');g.innerHTML='';
   const [wlo,whi]=win(iso), shadeL=Math.min(Math.max(wlo,START),END), shadeR=Math.max(Math.min(whi,END),START);
-  let ticks='';for(let h=6;h<=22;h++){const m=h*60;const major=h===6||h===12||h===18;ticks+=`<span class="tick${major?' major':''}" style="left:${pct(m)}">${major?ampm(m).toUpperCase():(h%12||12)}</span>`}
+  let ticks='';for(let h=6;h<=22;h++){const m=h*60;const major=h===6||h===12||h===18;ticks+=`<span class="tick${major?' major':''}${h===6?' first':''}" style="left:${pct(m)}">${major?ampm(m).toUpperCase():(h%12||12)}</span>`}
   const axisHtml=`<div class="axis"><div></div><div class="ticks">${ticks}</div></div>`;
   const lines=[...Array(18)].map((_,i)=>`<i class="hl" style="left:${pct((6+i)*60)}"></i>`).join('');
   for(const v of DATA.venues){
@@ -207,7 +222,16 @@ function renderGrid(iso){
     }
     g.appendChild(card);
   }
+  $('sticks').innerHTML=ticks;syncAxis();
 }
+function syncAxis(){const t=document.querySelector('#grid .track');if(!t)return;
+  $('sticks').style.width=t.offsetWidth+'px';$('sticks').style.transform=`translateX(${-$('board').scrollLeft}px)`;
+  const r=$('tl').getBoundingClientRect(), first=document.querySelector('#grid .vband .axis');
+  const fa=first?first.getBoundingClientRect():null;
+  $('saxis').classList.toggle('on',!!fa&&fa.bottom<0&&r.bottom>80)}
+$('board').addEventListener('scroll',syncAxis,{passive:true});
+window.addEventListener('scroll',syncAxis,{passive:true});
+window.addEventListener('resize',syncAxis);
 
 function renderSummary(iso){
   $('sumTitle').textContent=`Summary for ${DOW[dow(iso)]} ${fmtDate(iso)}`+(FROM!=null||UNTIL!=null?` (${FROM!=null?'from '+ampm(FROM):''}${FROM!=null&&UNTIL!=null?' ':''}${UNTIL!=null?'until '+ampm(UNTIL):''})`:'');

@@ -282,6 +282,9 @@ async function load(keep){
   try{const p=await fetch('playtomic.json?t='+Date.now(),{cache:'no-store'});if(p.ok){const pj=await p.json();
     for(const v of pj.venues||[]){const i=DATA.venues.findIndex(x=>x.id===v.id);if(i<0)DATA.venues.push(v);else if(!DATA.venues[i].checked||(v.checked&&v.checked>DATA.venues[i].checked))DATA.venues[i]={...v,slots:{...(DATA.venues[i].slots||{}),...(v.slots||{})}}}
     const ok=DATA.venues.filter(v=>v.status==='ok'&&v.checked).map(v=>v.checked).sort();if(ok.length)DATA.updated=ok[0]}}catch(e){}
+  // Display order: Wembley, Reabold, Melville, Cockburn (any other venue goes last)
+  const ORDER=['pcw','pp','pw','p360'];const rank=id=>{const i=ORDER.indexOf(id);return i<0?99:i};
+  DATA.venues.sort((a,b)=>rank(a.id)-rank(b.id));
   const today=perthNow().iso;
   const all=[...new Set(DATA.venues.flatMap(v=>Object.keys(v.slots||{})))].sort();
   DAYS=all.filter(d=>d>=today);

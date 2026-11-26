@@ -64,6 +64,7 @@ button{font:inherit;cursor:pointer}
 .vsub .old{color:var(--warn)}
 .vhead a{color:var(--slot);font-size:13px;font-weight:600;text-decoration:none}
 .vhead a:hover{text-decoration:underline}
+.none a,td.nil a{color:var(--slot);font-weight:600}
 .row{padding:4px 0}
 .row .lab{padding-left:30px;font-size:15px;position:sticky;left:0;z-index:4;background:var(--panel);align-self:stretch;display:flex;align-items:center}
 .axis>div:first-child{position:sticky;left:0;z-index:4;background:var(--band);align-self:stretch}
@@ -211,7 +212,7 @@ function renderGrid(iso){
   for(const v of DATA.venues){
     const card=document.createElement('div');card.className='venue';
     card.innerHTML=`<div class="vband"><div class="vhead"><div><div class="vname">${v.name}</div><div class="vsub">${v.suburb}, WA &middot; ${v.platform} &middot; <span class="${ageMin(v.checked)>180?'old':''}">${v.checked?'checked '+agoText(v.checked):'not checked yet'}</span></div></div><a href="${v.book}" target="_blank" rel="noopener">Book &rarr;</a></div>${axisHtml}</div>`;
-    if(v.status!=='ok'||!v.slots[iso]){const p=document.createElement('div');p.className='none';p.textContent=v.status!=='ok'?'Could not be checked on the last run.':'No data for this day yet.';card.appendChild(p);g.appendChild(card);continue}
+    if(v.status!=='ok'||!v.slots[iso]){const p=document.createElement('div');p.className='none';p.innerHTML=v.status==='paused'?`${v.platform} doesn't allow this page to check ${v.name} automatically, so its times aren't shown here. <a href="${v.book}" target="_blank" rel="noopener">See live availability on ${v.platform} &rarr;</a>`:v.status!=='ok'?`Could not be checked on the last run. <a href="${v.book}" target="_blank" rel="noopener">Check on ${v.platform} &rarr;</a>`:'No data for this day yet.';card.appendChild(p);g.appendChild(card);continue}
     for(const c of v.courts){
       const ivs=intervals(v.slots[iso][c]||[]).map(i=>clip(iso,i)).filter(Boolean);
       const row=document.createElement('div');row.className='row';
@@ -239,7 +240,7 @@ function renderSummary(iso){
   let h=`<thead><tr><th>Venue</th>${parts.map(p=>`<th>${p[0]} <span style="text-transform:none;letter-spacing:0">(${p[1]})</span></th>`).join('')}</tr></thead><tbody>`;
   for(const v of DATA.venues){
     h+=`<tr><td><b>${v.name}</b><span class="c" style="display:block">${v.suburb}</span></td>`;
-    if(v.status!=='ok'||!v.slots[iso]){h+=`<td class="nil" colspan="3">Not checked</td></tr>`;continue}
+    if(v.status!=='ok'||!v.slots[iso]){h+=`<td class="nil" colspan="3">Not checked here. <a href="${v.book}" target="_blank" rel="noopener">See ${v.platform} &rarr;</a></td></tr>`;continue}
     // collect intervals across courts, then group identical ranges
     for(const [,,lo,hi] of parts){
       const map=new Map();
@@ -272,7 +273,7 @@ function renderStamp(){
 }
 
 function renderNotes(){
-  const n=$('notes');n.innerHTML='<p>All four venues are checked about every 15 minutes from 5am to 11pm, for the full fortnight. Each venue shows when it was last checked, and this page reloads every 5 minutes. Slots can go between checks, so confirm on the booking site.</p>'+
+  const n=$('notes');n.innerHTML='<p>Padel West and Play Padel are checked about every 15 minutes from 5am to 11pm, for the full fortnight. Playtomic does not allow automatic checks, so for Padel Crush and Padel 360 use the links to see live times. Each venue shows when it was last checked, and this page reloads every 5 minutes. Slots can go between checks, so confirm on the booking site.</p>'+
    (DATA.unchecked||[]).map(u=>`<p>Not shown: ${u.name} (${u.suburb}). ${u.reason}.</p>`).join('');
 }
 
